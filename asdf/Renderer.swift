@@ -47,7 +47,13 @@ class Renderer: NSObject, MTKViewDelegate {
 	
 	let layer = CATextLayer()
 	
+	let camera = Camera()
+	
 	let testObject: RenderObject
+	
+	let terrains: TerrainGenerator
+	
+	var lastUpdateTime: Date = Date()
 
     init?(metalKitView: MTKView) {
         self.device = metalKitView.device!
@@ -97,6 +103,8 @@ class Renderer: NSObject, MTKViewDelegate {
         }
 		
 		testObject = .init(device: device)
+		
+		terrains = .init(device: device, mtkView: metalKitView)
 
         super.init()
 	}
@@ -207,12 +215,14 @@ class Renderer: NSObject, MTKViewDelegate {
         /// Update any game state before rendering
 
         uniforms[0].projectionMatrix = projectionMatrix
-
-        let rotationAxis = SIMD3<Float>(1, 1, 0)
-        let modelMatrix = matrix4x4_rotation(radians: rotation, axis: rotationAxis)
-        let viewMatrix = matrix4x4_translation(0.0, 0.0, -8.0)
-        uniforms[0].modelViewMatrix = simd_mul(viewMatrix, modelMatrix)
-        rotation += 0.01
+		
+		let now = Date()
+		let deltaTime = Float(now.timeIntervalSince(lastUpdateTime))
+		camera.update(deltaTime: deltaTime)
+		lastUpdateTime = now
+		
+		let viewMatrix = camera.viewMatrix()
+        uniforms[0].modelViewMatrix = viewMatrix
     }
 
     func draw(in view: MTKView) {
@@ -229,9 +239,7 @@ class Renderer: NSObject, MTKViewDelegate {
             self.updateDynamicBufferState()
             
             self.updateGameState()
-			
-			testObject.prepareForFrame(renderer: self)
-            
+			            
             /// Delay getting the currentRenderPassDescriptor until we absolutely need it to avoid
             ///   holding onto the drawable and blocking the display pipeline any longer than necessary
             let renderPassDescriptor = view.currentRenderPassDescriptor
@@ -265,19 +273,8 @@ class Renderer: NSObject, MTKViewDelegate {
                             renderEncoder.setVertexBuffer(buffer.buffer, offset:buffer.offset, index: index)
                         }
                     }
-//
-                    renderEncoder.setFragmentTexture(colorMap, index: TextureIndex.color.rawValue)
-//
-//                    for submesh in mesh.submeshes {
-//                        renderEncoder.drawIndexedPrimitives(type: submesh.primitiveType,
-//                                                            indexCount: submesh.indexCount,
-//                                                            indexType: submesh.indexType,
-//                                                            indexBuffer: submesh.indexBuffer.buffer,
-//                                                            indexBufferOffset: submesh.indexBuffer.offset)
-//
-//                    }
 					
-					testObject.render(in: renderEncoder)
+					terrains.render(encoder: renderEncoder)
                     
                     renderEncoder.popDebugGroup()
                     

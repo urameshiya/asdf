@@ -41,5 +41,58 @@ class GameViewController: NSViewController {
         renderer.mtkView(mtkView, drawableSizeWillChange: mtkView.drawableSize)
 
         mtkView.delegate = renderer
+		self.mtkView = mtkView
     }
+		
+//	override func viewDidAppear() {
+//		view.window?.makeFirstResponder(self)
+//	}
+	
+	override func keyDown(with event: NSEvent) {
+		let cameraScrollDirection = getCameraScrollMask(event: event)
+		
+		if let direction = cameraScrollDirection {
+			self.renderer.camera.startMoving(directions: direction)
+			return
+		}
+		
+		super.keyDown(with: event)
+	}
+	
+	private func getCameraScrollMask(event: NSEvent) -> CameraAutoScrollMask? {
+		switch event.charactersIgnoringModifiers?.lowercased() {
+		case "w":
+			return .forward
+		case "s":
+			return .backward
+		case "a":
+			return .left
+		case "d":
+			return .right
+		case " ":
+			return .up
+		default:
+			return nil
+		}
+	}
+	
+	override func flagsChanged(with event: NSEvent) {
+		if event.modifierFlags.contains(.shift) {
+			renderer.camera.startMoving(directions: .down)
+		} else {
+			renderer.camera.stopMoving(directions: .down)
+		}
+	}
+	
+	override func keyUp(with event: NSEvent) {
+		let cameraScrollDirection = getCameraScrollMask(event: event)
+		
+		if let direction = cameraScrollDirection {
+			self.renderer.camera.stopMoving(directions: direction)
+			return
+		}
+		
+		super.keyDown(with: event)
+	}
 }
+
