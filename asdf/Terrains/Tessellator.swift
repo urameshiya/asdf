@@ -41,17 +41,15 @@ class TriangleTessellator {
 		
 		assert(indices.count % 3 == 0)
 		
-		var newIndicesOffset = 0
 		var newIndices = [UInt32]()
 		var newVertices = [Float]()
+		let vCount = baryVerts.count / 3
 		
-//		let indexCorner0 = 0
-//		let indexCorner1 = vTotal - edgeVCount
-//		let indexCorner2 = vTotal - 1
-		for patch in stride(from: 0, to: indices.count, by: 3) {
-			let i0 = indices[patch]
-			let i1 = indices[patch + 1]
-			let i2 = indices[patch + 2]
+		for patch in 0..<indices.count / 3 {
+			let patchIndex = patch * 3 // every 3 indices make a triangle
+			let i0 = indices[patchIndex]
+			let i1 = indices[patchIndex + 1]
+			let i2 = indices[patchIndex + 2]
 			let v0 = getVertex(at: i0, vertices: vertices)
 			let v1 = getVertex(at: i1, vertices: vertices)
 			let v2 = getVertex(at: i2, vertices: vertices)
@@ -65,13 +63,7 @@ class TriangleTessellator {
 				newVertices.append(contentsOf: [vv.x, vv.y, vv.z])
 			}
 			
-			newIndices.append(contentsOf: baryIndices.map { UInt32($0 + patch * baryIndices.count) }) // new vertices come after old ones
-
-//			let newIndexStart = patch * baryIndices.count
-//			newIndices[newIndexStart] = i0
-//			newIndices[newIndexStart + indexCorner1] = i1
-//			newIndices[newIndexStart + indexCorner2] = i2
-			newIndicesOffset += baryIndices.count / 3
+			newIndices.append(contentsOf: baryIndices.map { UInt32($0 + patch * vCount) }) // new vertices come after old ones
 		}
 		
 		return (newVertices, newIndices)
