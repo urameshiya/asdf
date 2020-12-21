@@ -23,7 +23,12 @@ class PerlinNoise2D {
 			}
 			initCount = vCount
 		}
-		permutationTable = .init([0..<gridSize, 0..<gridSize].flatMap { $0 })
+		var permutationTable: [Int] = .init([0..<gridSize, 0..<gridSize].flatMap { $0 })
+		
+		for i in 0..<gridSize {
+			permutationTable.swapAt(i, .random(in: 0..<gridSize))
+		}
+		self.permutationTable = permutationTable
 	}
 	
 	func at(_ coord: SIMD2<Float>) -> Float {
@@ -43,6 +48,7 @@ class PerlinNoise2D {
 		
 		func hashFunc(x: Int, y: Int) -> Int {
 			return permutationTable[x + permutationTable[y]]
+//			return x * gridMask + y
 		}
 		
 		let w00 = vertexWeight(0, 0)

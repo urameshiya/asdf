@@ -38,20 +38,14 @@ class Renderer: NSObject, MTKViewDelegate {
 
     var uniforms: UnsafeMutablePointer<Uniforms>
 
-    var projectionMatrix: matrix_float4x4 = matrix_float4x4()
-	var viewMatrix: matrix_float4x4 = matrix4x4_translation(0.0, 0.0, -8.0)
-
-    var rotation: Float = 0
-
     var mesh: MTKMesh
 	
 	let layer = CATextLayer()
 	
 	let camera = Camera()
-	
-	let testObject: RenderObject
-	
-	let terrains: TerrainGenerator
+	let globalUniformBuffer: TripleBuffer<GlobalUniforms>
+		
+	let terrains: ChunkRenderer
 	
 	var lastUpdateTime: Date = Date()
 
@@ -101,10 +95,18 @@ class Renderer: NSObject, MTKViewDelegate {
             print("Unable to load texture. Error info: \(error)")
             return nil
         }
+				
+		let context = RenderingContext(device: device,
+									   commandQueue: commandQueue,
+									   defaultLibrary: device.makeDefaultLibrary()!,
+									   colorPixelFormat: metalKitView.colorPixelFormat,
+									   depthPixelFormat: metalKitView.depthStencilPixelFormat,
+									   stencilPixelFormat: metalKitView.depthStencilPixelFormat)
 		
-		testObject = .init(device: device)
-		
-		terrains = .init(device: device, mtkView: metalKitView)
+		terrains = ChunkRenderer(context: context)!
+		globalUniformBuffer = .init(count: 1) { [device] size in
+			device.makeBuffer(length: size, options: [.storageModeShared, .cpuCacheModeWriteCombined])!
+		}
 
         super.init()
 	}
@@ -213,16 +215,17 @@ class Renderer: NSObject, MTKViewDelegate {
 	
     private func updateGameState() {
         /// Update any game state before rendering
-
-        uniforms[0].projectionMatrix = projectionMatrix
 		
 		let now = Date()
 		let deltaTime = Float(now.timeIntervalSince(lastUpdateTime))
-		camera.update(deltaTime: deltaTime)
+		
+		camera.updateAutoScrolling(deltaTime: deltaTime)
+		terrains.update(camera: camera)
 		lastUpdateTime = now
 		
-		let viewMatrix = camera.viewMatrix()
-        uniforms[0].modelViewMatrix = viewMatrix
+		let globalUniforms = globalUniformBuffer.currentBufferPointer()
+		globalUniforms[0].camera = camera.uniforms
+		globalUniformBuffer.commitBuffer()
     }
 
     func draw(in view: MTKView) {
@@ -274,8 +277,8 @@ class Renderer: NSObject, MTKViewDelegate {
                         }
                     }
 					
-					terrains.render(encoder: renderEncoder)
-                    
+					terrains.render(encoder: renderEncoder, globalUniforms: globalUniformBuffer)
+					                    
                     renderEncoder.popDebugGroup()
                     
                     renderEncoder.endEncoding()
@@ -294,7 +297,7 @@ class Renderer: NSObject, MTKViewDelegate {
         /// Respond to drawable size or orientation changes here
 
         let aspect = Float(size.width) / Float(size.height)
-        projectionMatrix = matrix_perspective_right_hand(fovyRadians: radians_from_degrees(65), aspectRatio:aspect, nearZ: 0.1, farZ: 100.0)
+		camera.updateProjectionMatrix(fovyRadians: radians_from_degrees(65), aspectRatio: aspect, nearZ: 0.1, farZ: 100.0)
     }
 }
 

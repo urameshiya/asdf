@@ -9,6 +9,85 @@
 import Foundation
 import MetalKit
 
+struct RenderingContext {
+	let device: MTLDevice
+	let commandQueue: MTLCommandQueue
+	let defaultLibrary: MTLLibrary
+	let colorPixelFormat: MTLPixelFormat
+	let depthPixelFormat: MTLPixelFormat
+	let stencilPixelFormat: MTLPixelFormat
+}
+
+class TypedBuffer<Element> {
+	let buffer: MTLBuffer
+	let elementCount: Int
+
+	init(count: Int, allocator: (Int) throws -> MTLBuffer) rethrows {
+		let totalBufferSize = count * MemoryLayout<Element>.size
+		buffer = try allocator(totalBufferSize)
+		elementCount = count
+	}
+	
+	func bufferPointer() -> UnsafeMutableBufferPointer<Element> {
+		return .init(start: (buffer.contents()).bindMemory(to: Element.self, capacity: elementCount),
+					 count: elementCount)
+	}
+}
+
+class TripleBuffer<Element> {
+	private var renderingBufferIndex: Int = 0
+	fileprivate let buffer: MTLBuffer
+	fileprivate let perBufferElementCount: Int
+	var renderingBufferOffset: Int {
+		return renderingBufferIndex * perBufferSize
+	}
+	
+	init(count: Int, allocator: (Int) throws -> MTLBuffer) rethrows {
+		let totalBufferSize = count * MemoryLayout<Element>.size * 3
+		buffer = try allocator(totalBufferSize)
+		perBufferElementCount = count
+	}
+	
+	private var perBufferSize: Int {
+		return perBufferElementCount * MemoryLayout<Element>.size
+	}
+	
+	func currentBufferPointer() -> UnsafeMutableBufferPointer<Element> {
+		let nextBufferIndex = (renderingBufferIndex + 1) % 3
+		return .init(start: (buffer.contents() + nextBufferIndex * perBufferSize).bindMemory(to: Element.self, capacity: perBufferElementCount),
+					 count: perBufferElementCount)
+	}
+	
+	func commitBuffer() {
+		renderingBufferIndex = (renderingBufferIndex + 1) % 3
+	}
+}
+
+extension MTLRenderCommandEncoder {
+	func setVertexBuffer<E>(_ buffer: TripleBuffer<E>, index: Int) {
+		setVertexBuffer(buffer.buffer, offset: buffer.renderingBufferOffset, index: index)
+	}
+	
+	func setVertexBuffer<E>(_ buffer: TypedBuffer<E>, offset: Int, index: Int) {
+		setVertexBuffer(buffer.buffer, offset: offset * MemoryLayout<E>.stride, index: index)
+	}
+}
+
+extension MTLBlitCommandEncoder {
+	func copy<Element>(from src: TypedBuffer<Element>, to dest: MTLTexture) {
+		assert(src.elementCount == dest.width * dest.height)
+		copy(from: src.buffer,
+			 sourceOffset: 0,
+			 sourceBytesPerRow: dest.width * MemoryLayout<Element>.size,
+			 sourceBytesPerImage: src.elementCount * MemoryLayout<Element>.size,
+			 sourceSize: .init(width: dest.width, height: dest.height, depth: 1),
+			 to: dest,
+			 destinationSlice: 0,
+			 destinationLevel: 0,
+			 destinationOrigin: .init())
+	}
+}
+
 extension MTLVertexAttributeDescriptor {
 	func format(_ format: MTLVertexFormat) -> Self {
 		self.format = format
