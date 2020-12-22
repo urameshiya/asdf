@@ -10,9 +10,9 @@
 		F04D6F2A25873717000E7DBB /* PerlinNoise2D.swift in Sources */ = {isa = PBXBuildFile; fileRef = F04D6F2925873717000E7DBB /* PerlinNoise2D.swift */; };
 		F05505E02589AB0F00004A1C /* ChunkRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F05505DF2589AB0F00004A1C /* ChunkRenderer.swift */; };
 		F06A24C52588084200F4694A /* Camera.swift in Sources */ = {isa = PBXBuildFile; fileRef = F06A24C42588084200F4694A /* Camera.swift */; };
+		F080564225917DFB00FAC67C /* Pointer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F080564125917DFB00FAC67C /* Pointer.swift */; };
 		F08FFC832564FE0E000C84CB /* Metal.swift in Sources */ = {isa = PBXBuildFile; fileRef = F08FFC822564FE0E000C84CB /* Metal.swift */; };
 		F08FFC85256987D2000C84CB /* Pendulum.swift in Sources */ = {isa = PBXBuildFile; fileRef = F08FFC84256987D2000C84CB /* Pendulum.swift */; };
-		F08FFC87256B24FE000C84CB /* SIMD.swift in Sources */ = {isa = PBXBuildFile; fileRef = F08FFC86256B24FE000C84CB /* SIMD.swift */; };
 		F08FFC89256CA0CA000C84CB /* PhysicsBody.swift in Sources */ = {isa = PBXBuildFile; fileRef = F08FFC88256CA0CA000C84CB /* PhysicsBody.swift */; };
 		F09942512581EBE9008E452A /* Tessellator.metal in Sources */ = {isa = PBXBuildFile; fileRef = F09942502581EBE9008E452A /* Tessellator.metal */; };
 		F09942532581F8DF008E452A /* Tessellator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F09942522581F8DF008E452A /* Tessellator.swift */; };
@@ -31,9 +31,9 @@
 		F05505E3258D0F1200004A1C /* BridgingHeader-Swift.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "BridgingHeader-Swift.h"; sourceTree = "<group>"; };
 		F05505E4258D19DD00004A1C /* TerrainShaderTypes.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TerrainShaderTypes.h; sourceTree = "<group>"; };
 		F06A24C42588084200F4694A /* Camera.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Camera.swift; sourceTree = "<group>"; };
+		F080564125917DFB00FAC67C /* Pointer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Pointer.swift; sourceTree = "<group>"; };
 		F08FFC822564FE0E000C84CB /* Metal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Metal.swift; sourceTree = "<group>"; };
 		F08FFC84256987D2000C84CB /* Pendulum.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Pendulum.swift; sourceTree = "<group>"; };
-		F08FFC86256B24FE000C84CB /* SIMD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SIMD.swift; sourceTree = "<group>"; };
 		F08FFC88256CA0CA000C84CB /* PhysicsBody.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicsBody.swift; sourceTree = "<group>"; };
 		F099424D257C115D008E452A /* .gitignore */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
 		F09942502581EBE9008E452A /* Tessellator.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Tessellator.metal; sourceTree = "<group>"; };
@@ -104,7 +104,7 @@
 				F099425425848B9D008E452A /* Terrains */,
 				F08FFC84256987D2000C84CB /* Pendulum.swift */,
 				F08FFC88256CA0CA000C84CB /* PhysicsBody.swift */,
-				F08FFC86256B24FE000C84CB /* SIMD.swift */,
+				F080564125917DFB00FAC67C /* Pointer.swift */,
 				F08FFC822564FE0E000C84CB /* Metal.swift */,
 				F05505E3258D0F1200004A1C /* BridgingHeader-Swift.h */,
 				F0F6DD5B255DA40000DB8047 /* Shaders.metal */,
@@ -192,7 +192,6 @@
 				F0F6DD58255DA40000DB8047 /* GameViewController.swift in Sources */,
 				F04D6F2A25873717000E7DBB /* PerlinNoise2D.swift in Sources */,
 				F09942512581EBE9008E452A /* Tessellator.metal in Sources */,
-				F08FFC87256B24FE000C84CB /* SIMD.swift in Sources */,
 				F08FFC85256987D2000C84CB /* Pendulum.swift in Sources */,
 				F09942532581F8DF008E452A /* Tessellator.swift in Sources */,
 				F0F6DD5A255DA40000DB8047 /* Renderer.swift in Sources */,
@@ -201,6 +200,7 @@
 				F0F6DD6B255F092A00DB8047 /* TextRenderer.swift in Sources */,
 				F05505E02589AB0F00004A1C /* ChunkRenderer.swift in Sources */,
 				F0F6DD56255DA40000DB8047 /* AppDelegate.swift in Sources */,
+				F080564225917DFB00FAC67C /* Pointer.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

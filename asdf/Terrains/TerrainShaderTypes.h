@@ -28,6 +28,7 @@ typedef simd_float2 float2;
 
 struct TerrainVertexIn {
 	packed_float3 basePosition;
+	uint8_t bary;
 };
 
 struct TerrainInstanceUniforms {

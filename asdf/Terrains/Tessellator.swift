@@ -23,28 +23,38 @@ class TriangleTessellator {
 		patchCount = levelCount * levelCount // 1 + 3 + 5 + ...
 	}
 	
-	private func makeBuffer() -> (vertices: [Float], patches: [Int]) {
+	private func makeBuffer() -> (vertices: [Float], patches: [Int], barys: [UInt8]) {
 		var patches: [Int]!
+		var barys: [UInt8]!
 		let vertices = [Float].init(unsafeUninitializedCapacity: vTotal * 3) { (vPtr, vCount) in
 			patches = .init(unsafeUninitializedCapacity: patchCount * 3) { (pPtr, patchCount) in
-				tessellateBary(vertices: vPtr, patches: pPtr)
+				barys = .init(unsafeUninitializedCapacity: vTotal) { bPtr, bCount in
+					tessellateBary(vertices: vPtr, patches: pPtr, barys: bPtr)
+					bCount = vTotal
+				}
 				patchCount = self.patchCount * 3
 			}
 			vCount = vTotal * 3
 		}
 		
-		return (vertices, patches)
+		return (vertices, patches, barys)
 	}
-	
-	func tessellate(vertices: [Float], indices: [UInt32]) -> ([Float], [UInt32]) {
-		let (baryVerts, baryIndices) = makeBuffer()
+		
+	func tessellate(
+		vertices: [Float], indices: [UInt32],
+		outPositions: AnyMutablePointer<packed_float3>,
+		outIndices: AnyMutablePointer<UInt32>,
+		outBarys: AnyMutablePointer<UInt8>
+	) {
+		let (baryVerts, baryIndices, baryCoords) = makeBuffer()
 		
 		assert(indices.count % 3 == 0)
 		
-		var newIndices = [UInt32]()
-		var newVertices = [Float]()
 		let vCount = baryVerts.count / 3
 		
+		let outPositions = AppendSemantics(pointer: outPositions)
+		let outIndices = AppendSemantics(pointer: outIndices)
+		let outBarys = AppendSemantics(pointer: outBarys)
 		for patch in 0..<indices.count / 3 {
 			let patchIndex = patch * 3 // every 3 indices make a triangle
 			let i0 = indices[patchIndex]
@@ -60,29 +70,33 @@ class TriangleTessellator {
 				let vv2 = v2 * baryVerts[i + 2]
 				let vv = vv0 + vv1 + vv2
 				
-				newVertices.append(contentsOf: [vv.x, vv.y, vv.z])
+				outPositions.append(.init(x: vv.x, y: vv.y, z: vv.z))
 			}
-			
-			newIndices.append(contentsOf: baryIndices.map { UInt32($0 + patch * vCount) }) // new vertices come after old ones
+			outBarys.append(contentsOf: baryCoords)
+			outIndices.append(contentsOf: baryIndices.map { UInt32($0 + patch * vCount) }) // new vertices come after old ones
 		}
 		
-		return (newVertices, newIndices)
 	}
-	
+		
 	private func getVertex(at index: UInt32, vertices: [Float]) -> SIMD3<Float> {
 		let start = Int(index * 3)
 		return .init(vertices[start], vertices[start + 1], vertices[start + 2])
 	}
 					
-	private func tessellateBary(vertices: UMBPtr<Float>, patches: UMBPtr<Int>) {
+	private func tessellateBary(vertices: UMBPtr<Float>, patches: UMBPtr<Int>, barys: UMBPtr<UInt8>) {
 		var vOffset = 3
 		
 		vertices[0] = 1
 		vertices[1] = 0
 		vertices[2] = 0
+		
+		var bOffset = 1
+		barys[0] = 0
 		for level in 1...levelCount {
 			// u is the unchanged area ratio between points within the same level
 			let u = Float(levelCount - level) / Float(levelCount)
+			
+			var bary = UInt8(level % 3)
 			for point in 0...level {
 				let sumVW = 1 - u
 				let v = sumVW * Float(point) / Float(level)
@@ -92,6 +106,11 @@ class TriangleTessellator {
 				vertices[vOffset] = u
 				vertices[vOffset + 1] = v
 				vertices[vOffset + 2] = sumVW - v
+				
+				barys[bOffset] = bary
+				
+				bOffset += 1
+				bary = (bary + 1) % 3
 				vOffset += 3
 			}
 		}
@@ -113,6 +132,25 @@ class TriangleTessellator {
 			downTri &+= .init(level + 1, level + 2, level + 2)
 			upTri &+= .init(level + 1, level + 2, level + 1)
 		}
+	}
+}
+
+private class AppendSemantics<Element> {
+	private(set) var count = 0
+	let pointer: AnyMutablePointer<Element>
+	
+	init(pointer: AnyMutablePointer<Element>) {
+		self.pointer = pointer
+	}
+	
+	func append(_ element: Element) {
+		assert(count < pointer.count)
+		pointer[count] = element
+		count += 1
+	}
+	
+	func append<S>(contentsOf sequence: S) where S: Sequence, S.Element == Element {
+		sequence.forEach { self.append($0) }
 	}
 }
 

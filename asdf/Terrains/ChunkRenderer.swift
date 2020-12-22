@@ -14,7 +14,7 @@ class ChunkRenderer {
 	var renderCenter: (x: Int, z: Int) = (-10, -10)
 	let chunkSize: Float = 100
 	let tessellator = TriangleTessellator(levelCount: 10)
-	let vertexBuffer: TypedBuffer<packed_float3>
+	let vertexBuffer: TypedBuffer<TerrainVertexIn>
 	let indexBuffer: TypedBuffer<UInt32>
 	var instanceUniformsBuffer: TripleBuffer<TerrainInstanceUniforms>
 	let renderPipeline: MTLRenderPipelineState
@@ -47,15 +47,19 @@ class ChunkRenderer {
 			1, 3, 2
 		]
 		
-		let (verts, indices) = tessellator.tessellate(vertices: preVerts, indices: preIndices)
-		
-		vertexBuffer = TypedBuffer(count: verts.count / 3) { length in
+		vertexBuffer = TypedBuffer(count: tessellator.vTotal * 2) { length in
 			device.makeBuffer(length: length, options: [.storageModeShared])!
 		}
 		
-		indexBuffer = TypedBuffer(count: indices.count) { length in
+		indexBuffer = TypedBuffer(count: tessellator.patchCount * 3 * 2) { length in
 			device.makeBuffer(length: length, options: [.storageModeShared])!
 		}
+		
+		tessellator.tessellate(vertices: preVerts,
+							   indices: preIndices,
+							   outPositions: .init(vertexBuffer.bufferPointer().accessing(\.basePosition)),
+							   outIndices: .init(indexBuffer.bufferPointer()),
+							   outBarys: .init(vertexBuffer.bufferPointer().accessing(\.bary)))
 		
 		let side = renderDistance * 2 + 1
 		instanceCount = side * side
@@ -94,13 +98,6 @@ class ChunkRenderer {
 		blit.copy(from: perlinTempBuffer, to: perlinTexture)
 		blit.endEncoding()
 		commandBuffer.commit()
-		
-		_ = verts.withUnsafeBytes { (rawPtr) in
-			rawPtr.copyBytes(to: vertexBuffer.bufferPointer())
-		}
-		var (unused, nextIndex) = indexBuffer.bufferPointer().initialize(from: indices)
-		assert(unused.next() == nil)
-		assert(nextIndex == indexBuffer.elementCount)
 		
 	}
 	
@@ -154,7 +151,7 @@ class ChunkRenderer {
 		let lib = context.defaultLibrary
 		let desc = MTLRenderPipelineDescriptor()
 		desc.vertexFunction = lib.makeFunction(name: "terrain_vert")!
-		desc.fragmentFunction = lib.makeFunction(name: "tess_frag")!
+		desc.fragmentFunction = lib.makeFunction(name: "terrain_frag")!
 		desc.colorAttachments[0].pixelFormat = context.colorPixelFormat
 		desc.depthAttachmentPixelFormat = context.depthPixelFormat
 		desc.stencilAttachmentPixelFormat = context.stencilPixelFormat

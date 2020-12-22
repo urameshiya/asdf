@@ -36,6 +36,7 @@ fragment half4 tess_frag(ColorInOut in [[ stage_in ]])
 
 struct TerrainVertexOut {
 	float4 position [[ position ]];
+	float3 bary;
 	half4 color;
 };
 
@@ -59,7 +60,15 @@ vertex TerrainVertexOut terrain_vert
 	worldPosition.y = noise.sample(noiseSampler, worldPosition.xz / 512).r;
 	vOut.position = gUniforms.camera.viewProjectionMatrix * worldPosition;
 	
+	vOut.bary = float3(vIn[vId].bary == uchar3(0, 1, 2));
+	
 	uint3 offset(0, 1, 2);
 	vOut.color = half4(half3((offset + vId) % 3) / 3.0, 1);
 	return vOut;
+}
+
+fragment float4 terrain_frag(const TerrainVertexOut in [[ stage_in ]],
+							 const float3 bary [[ barycentric_coord ]])
+{
+	return float4(in.bary, 1.0);
 }
