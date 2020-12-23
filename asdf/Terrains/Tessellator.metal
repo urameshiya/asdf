@@ -67,8 +67,12 @@ vertex TerrainVertexOut terrain_vert
 	return vOut;
 }
 
-fragment float4 terrain_frag(const TerrainVertexOut in [[ stage_in ]],
-							 const float3 bary [[ barycentric_coord ]])
+fragment float4 terrain_frag(const TerrainVertexOut in [[ stage_in ]])
 {
-	return float4(in.bary, 1.0);
+	float4 color(1,0,1,1);
+	float width = 0.01; // line width, max 0.33
+	float3 reducedRange = max(width - in.bary, 0) / width;
+	float feathering = max3(reducedRange.x, reducedRange.y, reducedRange.z);
+	
+	return color * feathering;
 }
