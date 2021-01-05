@@ -12,30 +12,17 @@
 
 using namespace metal;
 
+constant bool fc_isGenerateHeightMapPass [[ function_constant(0) ]];
+
 typedef struct
 {
     float4 position [[position]];
-	half4 color;
+	float2 texCoord;
 } ColorInOut;
-
-vertex ColorInOut tess_vertex(constant packed_float3* vIn [[ buffer(BufferIndexMeshPositions) ]],
-							  constant Uniforms& uniforms [[ buffer(BufferIndexUniforms) ]],
-							  uint vId [[ vertex_id ]])
-{
-	ColorInOut out;
-	out.position = uniforms.projectionMatrix * uniforms.modelViewMatrix * float4(vIn[vId], 1);
-	uint3 offset = uint3(0, 1, 2);
-	out.color = half4(half3((offset + vId) % 3) / 3.0, 1);
-	return out;
-}
-
-fragment half4 tess_frag(ColorInOut in [[ stage_in ]])
-{
-	return in.color;
-}
 
 struct TerrainVertexOut {
 	float4 position [[ position ]];
+	float worldHeight [[ function_constant(fc_isGenerateHeightMapPass) ]];
 	float3 bary;
 	half4 color;
 };
@@ -47,24 +34,34 @@ vertex TerrainVertexOut terrain_vert
  const device GlobalUniforms& gUniforms [[ buffer(2) ]],
  const texture2d<float, access::sample> noise [[ texture(0) ]],
  const uint instanceId [[ instance_id ]],
- const uint vId [[ vertex_id ]]
+ const uint vId [[ vertex_id ]],
+ const constant float4x4& depthViewProjectionMatrix [[ buffer(3), function_constant(fc_isGenerateHeightMapPass) ]]
 )
 {
 	TerrainVertexOut vOut;
 	
-	constexpr sampler noiseSampler(address::mirrored_repeat);
+	constexpr sampler noiseSampler(mag_filter::nearest, min_filter::nearest, address::mirrored_repeat);
 	
 	float4 worldPosition;
 	worldPosition.w = 1.0;
 	worldPosition.xz = vIn[vId].basePosition.xz + iUniforms[instanceId].worldPosition;
 	worldPosition.y = noise.sample(noiseSampler, worldPosition.xz / 512).r;
-	vOut.position = gUniforms.camera.viewProjectionMatrix * worldPosition;
 	
-	vOut.bary = float3(vIn[vId].bary == uchar3(0, 1, 2));
-	
-	uint3 offset(0, 1, 2);
-	vOut.color = half4(half3((offset + vId) % 3) / 3.0, 1);
+	if (fc_isGenerateHeightMapPass) {
+		vOut.worldHeight = worldPosition.y;
+		vOut.position = depthViewProjectionMatrix * worldPosition;
+		vOut.position.xyz = float3(vOut.position.xz, 1.0);
+	} else {
+		vOut.position = gUniforms.camera.viewProjectionMatrix * worldPosition;
+		
+		vOut.bary = float3(vIn[vId].bary == uchar3(0, 1, 2));
+	}
+
 	return vOut;
+}
+
+fragment float terrain_height_frag(const TerrainVertexOut vOut [[ stage_in ]]) {
+	return vOut.worldHeight;
 }
 
 fragment float4 terrain_frag(const TerrainVertexOut in [[ stage_in ]])
@@ -75,4 +72,49 @@ fragment float4 terrain_frag(const TerrainVertexOut in [[ stage_in ]])
 	float feathering = max3(reducedRange.x, reducedRange.y, reducedRange.z);
 	
 	return color * feathering;
+}
+
+constant float2 vRect[4] = {
+	float2(-1.0, -1.0),
+	float2(-1.0, 1.0),
+	float2(1.0, -1.0),
+	float2(1.0, 1.0)
+};
+
+constant float2 uvRect[4] = {
+	float2(0.0, 0.0),
+	float2(0.0, 1.0),
+	float2(1.0, 0.0),
+	float2(1.0, 1.0)
+};
+
+constant bool fc_withTransform [[ function_constant(1) ]];
+
+vertex ColorInOut hud_vertex(uint vid [[ vertex_id ]],
+							 const device float4x4& modelViewMatrix [[ buffer(0), function_constant(fc_withTransform) ]],
+							 const device GlobalUniforms& globalUniforms [[ buffer(1), function_constant(fc_withTransform) ]]) {
+	ColorInOut out;
+	
+
+	if (fc_withTransform) {
+		out.position = globalUniforms.camera.viewProjectionMatrix * modelViewMatrix * float4(vRect[vid], 0.0, 1.0).xzyw;
+	} else {
+		out.position = float4(vRect[vid] * 0.3 + 0.2, 0.5, 1.0);
+	}
+	out.texCoord = uvRect[vid];
+	
+	return out;
+};
+
+fragment float4 hud_fragment(ColorInOut in [[stage_in]],
+							 texture2d<half> colorMap     [[ texture(0) ]],
+							 const device float& carHeight [[ buffer(0) ]])
+{
+    constexpr sampler colorSampler(mip_filter::linear,
+                                   mag_filter::linear,
+                                   min_filter::linear);
+
+    half4 colorSample   = colorMap.sample(colorSampler, in.texCoord.xy);
+
+    return float4(carHeight - colorSample);
 }

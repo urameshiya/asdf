@@ -25,7 +25,6 @@ class Renderer: NSObject, MTKViewDelegate {
 
     public let device: MTLDevice
     let commandQueue: MTLCommandQueue
-    var dynamicUniformBuffer: MTLBuffer
     var pipelineState: MTLRenderPipelineState
     var depthState: MTLDepthStencilState
     var colorMap: MTLTexture
@@ -35,8 +34,6 @@ class Renderer: NSObject, MTKViewDelegate {
     var uniformBufferOffset = 0
 
     var uniformBufferIndex = 0
-
-    var uniforms: UnsafeMutablePointer<Uniforms>
 
     var mesh: MTKMesh
 	
@@ -54,13 +51,6 @@ class Renderer: NSObject, MTKViewDelegate {
         self.commandQueue = self.device.makeCommandQueue()!
 
         let uniformBufferSize = alignedUniformsSize * maxBuffersInFlight
-
-        self.dynamicUniformBuffer = self.device.makeBuffer(length:uniformBufferSize,
-                                                           options:[MTLResourceOptions.storageModeShared])!
-
-        self.dynamicUniformBuffer.label = "UniformBuffer"
-
-        uniforms = UnsafeMutableRawPointer(dynamicUniformBuffer.contents()).bindMemory(to:Uniforms.self, capacity:1)
 
         metalKitView.depthStencilPixelFormat = MTLPixelFormat.depth32Float_stencil8
         metalKitView.colorPixelFormat = MTLPixelFormat.bgra8Unorm_srgb
@@ -107,6 +97,8 @@ class Renderer: NSObject, MTKViewDelegate {
 		globalUniformBuffer = .init(count: 1) { [device] size in
 			device.makeBuffer(length: size, options: [.storageModeShared, .cpuCacheModeWriteCombined])!
 		}
+		
+		car = Car(context: context)
 
         super.init()
 	}
@@ -210,8 +202,9 @@ class Renderer: NSObject, MTKViewDelegate {
 
         uniformBufferOffset = alignedUniformsSize * uniformBufferIndex
 
-        uniforms = UnsafeMutableRawPointer(dynamicUniformBuffer.contents() + uniformBufferOffset).bindMemory(to:Uniforms.self, capacity:1)
     }
+	
+	let car: Car
 	
     private func updateGameState() {
         /// Update any game state before rendering
@@ -226,6 +219,12 @@ class Renderer: NSObject, MTKViewDelegate {
 		let globalUniforms = globalUniformBuffer.currentBufferPointer()
 		globalUniforms[0].camera = camera.uniforms
 		globalUniformBuffer.commitBuffer()
+		
+		let buffer = commandQueue.makeCommandBuffer()!
+		
+		car.update(commandBuffer: buffer, globalUniforms: globalUniformBuffer, terrains: terrains, camera: camera)
+		
+		buffer.commit()
     }
 
     func draw(in view: MTKView) {
@@ -254,30 +253,11 @@ class Renderer: NSObject, MTKViewDelegate {
                     renderEncoder.label = "Primary Render Encoder"
                     
                     renderEncoder.pushDebugGroup("Draw Box")
-                    
-//                    renderEncoder.setCullMode(.back)
-                    
-                    renderEncoder.setFrontFacing(.counterClockwise)
-                    
-                    renderEncoder.setRenderPipelineState(pipelineState)
-                    
-                    renderEncoder.setDepthStencilState(depthState)
-                    
-                    renderEncoder.setVertexBuffer(dynamicUniformBuffer, offset:uniformBufferOffset, index: BufferIndex.uniforms.rawValue)
-                    renderEncoder.setFragmentBuffer(dynamicUniformBuffer, offset:uniformBufferOffset, index: BufferIndex.uniforms.rawValue)
-                    
-                    for (index, element) in mesh.vertexDescriptor.layouts.enumerated() {
-                        guard let layout = element as? MDLVertexBufferLayout else {
-                            return
-                        }
-
-                        if layout.stride != 0 {
-                            let buffer = mesh.vertexBuffers[index]
-                            renderEncoder.setVertexBuffer(buffer.buffer, offset:buffer.offset, index: index)
-                        }
-                    }
+					
+					renderEncoder.setDepthStencilState(depthState)
 					
 					terrains.render(encoder: renderEncoder, globalUniforms: globalUniformBuffer)
+					car.render(encoder: renderEncoder, globalUniforms: globalUniformBuffer, camera: camera)
 					                    
                     renderEncoder.popDebugGroup()
                     

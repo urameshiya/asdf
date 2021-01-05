@@ -44,9 +44,9 @@ class GameViewController: NSViewController {
 		self.mtkView = mtkView
     }
 		
-//	override func viewDidAppear() {
-//		view.window?.makeFirstResponder(self)
-//	}
+	override func viewDidAppear() {
+		view.window?.makeFirstResponder(self)
+	}
 	
 	override func keyDown(with event: NSEvent) {
 		let cameraScrollDirection = getCameraScrollMask(event: event)
