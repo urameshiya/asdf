@@ -26,6 +26,8 @@ typedef struct {
 typedef simd_float2 float2;
 #endif
 
+#define FIND_MAX_SIZE 8
+
 struct TerrainVertexIn {
 	packed_float3 basePosition;
 	uint8_t bary; // 0...2 representing permutations of <1, 0, 0>

@@ -32,6 +32,13 @@ class TypedBuffer<Element> {
 		return .init(start: (buffer.contents()).bindMemory(to: Element.self, capacity: elementCount),
 					 count: elementCount)
 	}
+	
+	func fill(with arr: [Element]) {
+		assert(arr.count <= elementCount)
+		
+		let ptr = bufferPointer()
+		_ = ptr.initialize(from: arr)
+	}
 }
 
 class TripleBuffer<Element> {
@@ -68,7 +75,7 @@ extension MTLRenderCommandEncoder {
 		setVertexBuffer(buffer.buffer, offset: buffer.renderingBufferOffset, index: index)
 	}
 	
-	func setVertexBuffer<E>(_ buffer: TypedBuffer<E>, offset: Int, index: Int) {
+	func setVertexBuffer<E>(_ buffer: TypedBuffer<E>, offset: Int = 0, index: Int) {
 		setVertexBuffer(buffer.buffer, offset: offset * MemoryLayout<E>.stride, index: index)
 	}
 }
