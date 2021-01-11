@@ -13,16 +13,17 @@ class Car {
 	var terrainHeightAtWheel: MTLTexture
 	var wheelTexture: MTLTexture
 	var wheelDepthTexture: MTLTexture
-	var pos = float3(12, 1, 17)
-	var rot = 0.3 as Float
+	var pos = float3(12, 1, -17)
+	var yRot = 0.3 as Float
 	var pipeline_hud: MTLRenderPipelineState
 	var pipeline_world: MTLRenderPipelineState
 	var pipeline_find_max: MTLComputePipelineState
 	var pipeline_ground_contact: MTLRenderPipelineState
 	var pipeline_contact_depth: MTLDepthStencilState
-	var dimX: Float = 30
-	var dimZ: Float = 20
-	var yOffsetBuffer: TypedBuffer<Float>
+	var dimX: Float = 5
+	var dimY: Float = 10
+	var dimZ: Float = 5
+	var yOffsetBuffer: TripleBuffer<Float>
 	
 	init(context: RenderingContext) {
 		let texDesc = MTLTextureDescriptor()
@@ -87,7 +88,7 @@ class Car {
 	}
 	
 	func sceneToObjectSpaceMatrix() -> matrix_float4x4 {
-		let rotation = matrix4x4_rotation(radians: -rot, axis: .init(x: 0, y: 1, z: 0))
+		let rotation = matrix4x4_rotation(radians: -yRot, axis: .init(x: 0, y: 1, z: 0))
 		let translation = matrix4x4_translation(-pos.x, -30, -pos.z)
 		let remap = matrix_remap_xz(width: dimX, height: dimZ)
 		
@@ -96,24 +97,20 @@ class Car {
 	
 	func render(encoder: MTLRenderCommandEncoder, globalUniforms: TripleBuffer<GlobalUniforms>, camera: Camera) {
 		encoder.pushDebugGroup("World car")
-		let scale = matrix_scale(dimX / 2, 30, dimZ / 2)
-		let rotation = matrix4x4_rotation(radians: rot, axis: .init(x: 0, y: 1, z: 0))
-		var translation = matrix4x4_translation(pos.x, pos.y, pos.z) * rotation * scale
+		let rotation = matrix4x4_rotation(radians: yRot, axis: .init(0, 1, 0)) * modelTransform()
+		var translation = matrix4x4_translation(pos.x, 0, pos.z) * rotation
 		encoder.setRenderPipelineState(pipeline_world)
 		encoder.setVertexBuffer(vBuffer, index: 0)
 		encoder.setVertexBytes(&translation, length: MemoryLayout.size(ofValue: translation), index: 1)
 		encoder.setVertexBuffer(globalUniforms, index: 2)
-		encoder.setVertexBuffer(yOffsetBuffer, offset: 0, index: 3)
+		encoder.setVertexBuffer(yOffsetBuffer, index: 3)
 		encoder.drawIndexedPrimitives(type: .triangle,
 									  indexCount: indexBuffer.elementCount,
 									  indexType: .uint32,
 									  indexBuffer: indexBuffer.buffer,
 									  indexBufferOffset: 0)
 		encoder.popDebugGroup()
-	}
-	
-	func findHighestHeight() {
-		
+
 	}
 	
 	func update(
@@ -122,13 +119,14 @@ class Car {
 		terrains: ChunkRenderer,
 		camera: Camera
 	) {
-//		pos.x = camera.x
-//		pos.y = camera.y - 4
-//		pos.z = camera.z - 50
+		yOffsetBuffer.currentBufferPointer()[0] = -9999
+		yOffsetBuffer.commitBuffer()
 		
 		do { // make contact map
 			let renderpass = MTLRenderPassDescriptor()
 			renderpass.colorAttachments[0].texture = wheelTexture
+			renderpass.colorAttachments[0].loadAction = .clear
+			renderpass.colorAttachments[0].clearColor = MTLClearColorMake(9999, 0, 0, 0)
 			renderpass.depthAttachment.texture = wheelDepthTexture
 			
 			let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderpass)!
@@ -156,7 +154,7 @@ class Car {
 		encoder.setComputePipelineState(pipeline_find_max)
 		encoder.setTexture(terrainHeightAtWheel, index: 0)
 		encoder.setTexture(wheelTexture, index: 1)
-		encoder.setBuffer(yOffsetBuffer.buffer, offset: 0, index: 0)
+		encoder.setBuffer(yOffsetBuffer, index: 0)
 		
 		let gridsize = MTLSize(width: terrainHeightAtWheel.width / Int(FIND_MAX_SIZE),
 							   height: terrainHeightAtWheel.height / Int(FIND_MAX_SIZE),
@@ -169,7 +167,7 @@ class Car {
 	}
 	
 	func modelTransform() -> float4x4 {
-		return matrix4x4_rotation(radians: rot, axis: .init(0, 1, 0)) * matrix_scale(dimX / 2, 30, dimZ / 2)
+		return matrix_scale(dimX / 2, dimY, dimZ / 2)
 	}
 	
 	var vBuffer: TypedBuffer<Float>!

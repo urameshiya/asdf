@@ -55,8 +55,27 @@ class GameViewController: NSViewController {
 			self.renderer.camera.startMoving(directions: direction)
 			return
 		}
+		if handleCarKeyDown(event: event) { return }
 		
 		super.keyDown(with: event)
+	}
+	
+	func handleCarKeyDown(event: NSEvent) -> Bool {
+		let car = renderer.car
+		let speed = renderer.camera.scrollspeed * 0.03
+		switch event.charactersIgnoringModifiers?.lowercased() {
+		case "h":
+			car.pos.x -= speed
+		case "j":
+			car.pos.z += speed
+		case "k":
+			car.pos.x += speed
+		case "u":
+			car.pos.z -= speed
+		default:
+			return false
+		}
+		return true
 	}
 	
 	private func getCameraScrollMask(event: NSEvent) -> CameraAutoScrollMask? {

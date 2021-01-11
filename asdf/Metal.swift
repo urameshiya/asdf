@@ -80,6 +80,12 @@ extension MTLRenderCommandEncoder {
 	}
 }
 
+extension MTLComputeCommandEncoder {
+	func setBuffer<E>(_ buffer: TripleBuffer<E>, index: Int) {
+		setBuffer(buffer.buffer, offset: buffer.renderingBufferOffset, index: index)
+	}
+}
+
 extension MTLBlitCommandEncoder {
 	func copy<Element>(from src: TypedBuffer<Element>, to dest: MTLTexture) {
 		assert(src.elementCount == dest.width * dest.height)
