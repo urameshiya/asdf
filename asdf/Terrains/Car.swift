@@ -20,9 +20,9 @@ class Car {
 	var pipeline_find_max: MTLComputePipelineState
 	var pipeline_ground_contact: MTLRenderPipelineState
 	var pipeline_contact_depth: MTLDepthStencilState
-	var dimX: Float = 5
-	var dimY: Float = 10
-	var dimZ: Float = 5
+	var dimX: Float = 0.6
+	var dimY: Float = 0.6
+	var dimZ: Float = 0.1
 	var yOffsetBuffer: TripleBuffer<Float>
 	
 	init(context: RenderingContext) {
@@ -167,57 +167,59 @@ class Car {
 	}
 	
 	func modelTransform() -> float4x4 {
-		return matrix_scale(dimX / 2, dimY, dimZ / 2)
+		return matrix_scale(dimX / 2, dimY / 2, dimZ / 2)
 	}
 	
 	var vBuffer: TypedBuffer<Float>!
 	var indexBuffer: TypedBuffer<UInt32>!
 	
 	func fillWheelMesh(context: RenderingContext) {
-		let vertices: [Float] = [
-			0.5, 0, 0,
-			0, 0.5, 0,
-			0.5, 1, 0,
-			1, 0.5, 0,
-			0.5, 0, 1,
-			0, 0.5, 1,
-			0.5, 1, 1,
-			1, 0.5, 1,
-		]
+		let center = float2(x: 0, y: 0)
+		let r: Float = 1
+		var vertices: [Float] = [center.x, center.y, -1, center.x, center.y, 1]
 		
-		let faces: [UInt32] = [
-			0, 1, 3, 2,
-			4, 5, 7, 6,
-			0, 1, 4, 5,
-			1, 2, 5, 6,
-			2, 3, 6, 7,
-			3, 0, 7, 4,
-		]
+		var faces: [UInt32] = []
 		
-		let triFaces = quadsToTriangles(quadFaces: faces)
+		let segments = 50
+		var lastVertexOnCircle = 0
+		var currentVertex = 2
+		for i in 0..<segments {
+			let theta = 2 * Float.pi / Float(segments) * Float(i)
+			let x = center.x + r * sin(theta)
+			let y = center.y + r * cos(theta)
+			vertices.append(contentsOf: [x, y, -1])
+			vertices.append(contentsOf: [x, y, 1])
+			
+			lastVertexOnCircle = currentVertex
+			if i == segments - 1 {
+				currentVertex = 2
+			} else {
+				currentVertex += 2
+			}
+
+			faces.append(contentsOf: triangleFace((0, lastVertexOnCircle, currentVertex)))
+			faces.append(contentsOf: triangleFace((1, lastVertexOnCircle + 1, currentVertex + 1)))
+			faces.append(contentsOf: quadFace((lastVertexOnCircle, lastVertexOnCircle + 1, currentVertex, currentVertex + 1)))
+		}
 		
 		vBuffer = .init(count: vertices.count, allocator: { (size) -> MTLBuffer in
 			context.device.makeBuffer(length: size, options: [.storageModeShared])!
 		})
 		
-		indexBuffer = .init(count: triFaces.count, allocator: { (size) -> MTLBuffer in
+		indexBuffer = .init(count: faces.count, allocator: { (size) -> MTLBuffer in
 			context.device.makeBuffer(length: size, options: [.storageModeShared])!
 		})
 		
-		vBuffer.fill(with: vertices.map({ $0 * 2 - 1 }))
-		indexBuffer.fill(with: triFaces)
+		vBuffer.fill(with: vertices)
+		indexBuffer.fill(with: faces)
 	}
 	
-	private func quadsToTriangles(quadFaces: [UInt32]) -> [UInt32] {
-		assert(quadFaces.count % 4 == 0)
-		
-		var newFaces = [UInt32]()
-		for i in stride(from: 0, to: quadFaces.count, by: 4) {
-			newFaces.append(contentsOf: [quadFaces[i], quadFaces[i + 1], quadFaces[i + 2]])
-			newFaces.append(contentsOf: [quadFaces[i + 1], quadFaces[i + 2], quadFaces[i + 3]])
-		}
-		assert(newFaces.count / 3 == quadFaces.count / 4 * 2)
-		return newFaces
+	private func triangleFace(_ face: (Int, Int, Int)) -> [UInt32] {
+		return [face.0, face.1, face.2].map(UInt32.init)
+	}
+	
+	private func quadFace(_ face: (Int, Int, Int, Int)) -> [UInt32] {
+		return [face.0, face.1, face.2, face.1, face.2, face.3].map(UInt32.init)
 	}
 }
 

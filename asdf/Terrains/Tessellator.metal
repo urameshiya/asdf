@@ -168,7 +168,7 @@ vertex TerrainVertexOut contact_surface_vertex(const device packed_float3* vIn [
 	return out;
 }
 
-vertex float4 wheel_mesh_vertex(const device packed_float3* vIn [[ buffer(0) ]],
+vertex ColorInOut wheel_mesh_vertex(const device packed_float3* vIn [[ buffer(0) ]],
 								const device float4x4& modelTransform [[ buffer(1) ]],
 								const device GlobalUniforms& globalUniforms [[ buffer(2) ]],
 								const device float& yOffset [[ buffer(3) ]],
@@ -176,9 +176,13 @@ vertex float4 wheel_mesh_vertex(const device packed_float3* vIn [[ buffer(0) ]],
 {
 	float4 worldSpace = modelTransform * float4(vIn[vid], 1.0);
 	worldSpace.y += yOffset;
-	return globalUniforms.camera.viewProjectionMatrix * worldSpace;
+	
+	ColorInOut out;
+	out.position = globalUniforms.camera.viewProjectionMatrix * worldSpace;
+	out.texCoord = float2(float(vid % 3) / 3);
+	return out;
 }
 
-fragment float4 simple_fragment() {
-	return float4(1, 0, 0, 1);
+fragment float4 simple_fragment(const ColorInOut in [[ stage_in ]]) {
+	return float4(in.texCoord, 0, 1.0);
 }
