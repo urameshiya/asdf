@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		F04D6F2A25873717000E7DBB /* PerlinNoise2D.swift in Sources */ = {isa = PBXBuildFile; fileRef = F04D6F2925873717000E7DBB /* PerlinNoise2D.swift */; };
 		F05505E02589AB0F00004A1C /* ChunkRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F05505DF2589AB0F00004A1C /* ChunkRenderer.swift */; };
+		F056909425B378C600208A6C /* Terrains.swift in Sources */ = {isa = PBXBuildFile; fileRef = F056909325B378C600208A6C /* Terrains.swift */; };
 		F06A24C52588084200F4694A /* Camera.swift in Sources */ = {isa = PBXBuildFile; fileRef = F06A24C42588084200F4694A /* Camera.swift */; };
 		F080564225917DFB00FAC67C /* Pointer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F080564125917DFB00FAC67C /* Pointer.swift */; };
 		F08056442594495800FAC67C /* Car.swift in Sources */ = {isa = PBXBuildFile; fileRef = F08056432594495800FAC67C /* Car.swift */; };
@@ -31,6 +32,7 @@
 		F05505DF2589AB0F00004A1C /* ChunkRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChunkRenderer.swift; sourceTree = "<group>"; };
 		F05505E3258D0F1200004A1C /* BridgingHeader-Swift.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "BridgingHeader-Swift.h"; sourceTree = "<group>"; };
 		F05505E4258D19DD00004A1C /* TerrainShaderTypes.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TerrainShaderTypes.h; sourceTree = "<group>"; };
+		F056909325B378C600208A6C /* Terrains.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Terrains.swift; sourceTree = "<group>"; };
 		F06A24C42588084200F4694A /* Camera.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Camera.swift; sourceTree = "<group>"; };
 		F080564125917DFB00FAC67C /* Pointer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Pointer.swift; sourceTree = "<group>"; };
 		F08056432594495800FAC67C /* Car.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Car.swift; sourceTree = "<group>"; };
@@ -69,6 +71,7 @@
 			isa = PBXGroup;
 			children = (
 				F05505DF2589AB0F00004A1C /* ChunkRenderer.swift */,
+				F056909325B378C600208A6C /* Terrains.swift */,
 				F08056432594495800FAC67C /* Car.swift */,
 				F04D6F2925873717000E7DBB /* PerlinNoise2D.swift */,
 				F09942502581EBE9008E452A /* Tessellator.metal */,
@@ -191,6 +194,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F0F6DD5C255DA40000DB8047 /* Shaders.metal in Sources */,
+				F056909425B378C600208A6C /* Terrains.swift in Sources */,
 				F08FFC89256CA0CA000C84CB /* PhysicsBody.swift in Sources */,
 				F08056442594495800FAC67C /* Car.swift in Sources */,
 				F0F6DD58255DA40000DB8047 /* GameViewController.swift in Sources */,

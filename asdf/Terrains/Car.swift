@@ -13,6 +13,12 @@ class Car {
 	var terrainHeightAtWheel: MTLTexture
 	var wheelTexture: MTLTexture
 	var wheelDepthTexture: MTLTexture
+	var wheels: [WheelData] = [
+		.init(posX: -10, posZ: -10, rotY: 0),
+		.init(posX: -10, posZ: -10, rotY: 0),
+		.init(posX: 10, posZ: 10, rotY: 0),
+		.init(posX: 10, posZ: 10, rotY: 0),
+	]
 	var pos = float3(12, 1, -17)
 	var yRot = 0.3 as Float
 	var pipeline_hud: MTLRenderPipelineState
@@ -221,6 +227,78 @@ class Car {
 	private func quadFace(_ face: (Int, Int, Int, Int)) -> [UInt32] {
 		return [face.0, face.1, face.2, face.1, face.2, face.3].map(UInt32.init)
 	}
+	
+	var wheelAxis = float3(0, 0, 1) {
+		didSet {
+			wheelAxis = normalize(wheelAxis)
+		}
+	} // normalized
+	
+	func handleTerrains(terrains: Terrains) {
+		let nearbyTriangles = terrains.getTriangles(overlapping: .init(x: pos.x - dimX / 2, y: pos.z - dimZ / 2, width: dimX, height: dimZ))
+		let wheelRadius = dimX / 2
+		let wheelAxis = float3(0, 0, 1)
+		
+		let simplex = GJKSimplex()
+		let direction = Vector3(1, 0, 0)
+		for triangle in nearbyTriangles {
+			
+		}
+	}
+	
+	func gjk_supportFunction(axis: Vector3) -> Vector3 {
+		let r = dimY / 2
+		let halfHeight = dimZ / 2
+		let dp = dot(axis, wheelAxis)
+		let unitRadial = normalize(axis - wheelAxis * dp)
+		let vWheelAxis = halfHeight * sign(dp) * wheelAxis
+		let vRadial = r * unitRadial
+		return pos + vWheelAxis + vRadial
+	}
+	
+	func gjk_checkCollision(_ shape: Triangle) -> Bool {
+		var axis = Vector3(1, 0, 0)
+		let simplex = GJKSimplex()
+		var minkowski = self.gjk_supportFunction(axis: axis) - shape.gjk_supportFunction(axis: -axis)
+		simplex.addPoint(minkowski)
+		
+		while true {
+			axis = simplex.axisTowardsOrigin()
+			minkowski = self.gjk_supportFunction(axis: axis) - shape.gjk_supportFunction(axis: -axis)
+			if dot(minkowski, axis) < 0 { // the entire Minkowski diff lies away from origin
+				return false
+			}
+			simplex.addPoint(minkowski)
+			if simplex.containsOrigin {
+				return true
+			}
+		}
+	}
+	
+	func projectedPoints(onto normalAxis: Vector3) -> [Float] {
+		let dp = dot(normalAxis, wheelAxis)
+		let normalToFaceAngle = asin(dp)
+		let diameter = dimY
+		let length = dimZ
+		let v0 = diameter * cos(normalToFaceAngle)
+		let v1 = length * sin(normalToFaceAngle)
+		
+		// project vertices of rectangular cross-section onto normalAxis
+		return [
+			0,
+			v0,
+			v1,
+			v1 + v0 // a + b = c => a (dot) u + b.u = c.u
+		]
+	}
+	
+	func zeroPoint(axis: Vector3) -> Vector3 {
+		let cylinderLength = dimZ
+		let radius = dimY / 2
+		let center = pos - wheelAxis * cylinderLength
+		let crossSectionNormal = normalize(cross(wheelAxis, axis))
+		return center + cross(wheelAxis, crossSectionNormal) * radius
+	}
 }
 
 //class BasicMesh {
@@ -232,8 +310,72 @@ class Car {
 //	}
 //}
 
-struct Rect {
+class WheelData {
+	var posX: Float
+	var posZ: Float
+	var rotY: Float
 	
+	init(posX: Float, posZ: Float, rotY: Float) {
+		self.posX = posX
+		self.posZ = posZ
+		self.rotY = rotY
+	}
+}
+
+class GJKSimplex {
+	var containsOrigin = false
+	var points = [Vector3]() {
+		didSet {
+			assert(points.count <= 4, "Simplex must be at most 3 simplex")
+		}
+	}
+	
+	func addPoint(_ p: Vector3) {
+		points.append(p)
+		
+		if points.count == 4 {
+			containsOrigin = isOriginOnSameSide(base: (points[0], points[1], points[2]), p: points[3])
+				&& isOriginOnSameSide(base: (points[1], points[2], points[3]), p: points[0])
+				&& isOriginOnSameSide(base: (points[2], points[3], points[0]), p: points[1])
+				&& isOriginOnSameSide(base: (points[0], points[1], points[3]), p: points[2])
+			points.remove(at: 0)
+		}
+	}
+	
+	private func isOriginOnSameSide(base: (Vector3, Vector3, Vector3), p: Vector3) -> Bool {
+		let normal = cross(base.1 - base.0, base.2 - base.0)
+		let dP = dot(p - base.0, normal)
+		let dOrigin = dot(-base.0, normal)
+		return dOrigin == 0 // origin is coplanar with base
+			|| sign(dOrigin) == sign(dP)
+	}
+	
+	func axisTowardsOrigin() -> Vector3 {
+		var axis = Vector3.zero
+		switch points.count {
+		case 1:
+			axis = -points[0]
+		case 2:
+			let a = points[1] - points[0]
+			let b = -points[0]
+			axis = b * dot(a, a) - a * dot(a, b) // a x (b x c)
+		case 3:
+			let a = points[1] - points[0]
+			let b = points[2] - points[0]
+			let normal = cross(a, b)
+			let AO = -points[0]
+			axis = dot(AO, axis) < 0 ? -normal : normal
+		default:
+			assertionFailure()
+		}
+		
+		return normalize(axis)
+	}
+}
+
+struct Rect {
+	var x, y: Float
+	var width, height: Float
 }
 
 func matrix_remap_xz(width: Float, height: Float) -> matrix_float4x4 {
