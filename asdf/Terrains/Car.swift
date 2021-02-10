@@ -151,11 +151,6 @@ class Car {
 		}
 		
 		
-		terrains.generateHeightMap(buffer: commandBuffer,
-								   intoTexture: terrainHeightAtWheel,
-								   sceneToObjectSpaceTransform: sceneToObjectSpaceMatrix(),
-								   globalUniforms: globalUniforms)
-		
 		let encoder = commandBuffer.makeComputeCommandEncoder()!
 		encoder.setComputePipelineState(pipeline_find_max)
 		encoder.setTexture(terrainHeightAtWheel, index: 0)
@@ -242,7 +237,9 @@ class Car {
 		let simplex = GJKSimplex()
 		let direction = Vector3(1, 0, 0)
 		for triangle in nearbyTriangles {
-			
+			if gjk_checkCollision(triangle) {
+				print("collision")
+			}
 		}
 	}
 	

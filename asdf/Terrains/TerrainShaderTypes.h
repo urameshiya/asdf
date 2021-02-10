@@ -29,12 +29,13 @@ typedef simd_float2 float2;
 #define FIND_MAX_SIZE 8
 
 struct TerrainVertexIn {
-	packed_float3 basePosition;
+	packed_float3 position;
 	uint8_t bary; // 0...2 representing permutations of <1, 0, 0>
 };
 
 struct TerrainInstanceUniforms {
 	float2 worldPosition;
+	uint chunkOffset;
 };
 
 typedef struct {

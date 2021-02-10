@@ -38,34 +38,42 @@ TerrainVertexOut generateWorldHeight(float4 worldPosition, float4x4 xyProjection
 vertex TerrainVertexOut terrain_vert
 (
  const device TerrainVertexIn* vIn [[ buffer(0) ]],
- const device TerrainInstanceUniforms* iUniforms [[ buffer(1) ]],
- const device GlobalUniforms& gUniforms [[ buffer(2) ]],
- const texture2d<float, access::sample> noise [[ texture(0) ]],
- const uint instanceId [[ instance_id ]],
+ const device GlobalUniforms& gUniforms [[ buffer(1) ]],
+ const device uint& instance_size [[ buffer(2) ]],
  const uint vId [[ vertex_id ]],
- const constant float4x4& depthViewProjectionMatrix [[ buffer(3), function_constant(fc_isGenerateHeightMapPass) ]]
+ const uint instanceId [[ instance_id ]]
 )
 {
 	TerrainVertexOut vOut;
-	
-	constexpr sampler noiseSampler(mag_filter::nearest, min_filter::nearest, address::mirrored_repeat);
-	
-	float4 worldPosition;
-	worldPosition.w = 1.0;
-	worldPosition.xz = vIn[vId].basePosition.xz + iUniforms[instanceId].worldPosition;
-	worldPosition.y = noise.sample(noiseSampler, worldPosition.xz / 512).r;
-	
-	if (fc_isGenerateHeightMapPass) {
-		vOut.worldHeight = worldPosition.y;
-		vOut.position = depthViewProjectionMatrix * worldPosition;
-		vOut.position.xyz = float3(vOut.position.xz, 1.0);
-	} else {
-		vOut.position = gUniforms.camera.viewProjectionMatrix * worldPosition;
+	TerrainVertexIn vert = vIn[vId + instanceId * instance_size];
+	vOut.position = gUniforms.camera.viewProjectionMatrix * float4(vert.position, 1.0);
 		
-		vOut.bary = float3(vIn[vId].bary == uchar3(0, 1, 2));
-	}
+	vOut.bary = float3(vert.bary == uchar3(0, 1, 2));
 
 	return vOut;
+}
+
+kernel void populate_terrain
+(
+ const device TerrainVertexIn* baseVertices [[ buffer(0) ]],
+ const device TerrainInstanceUniforms* iUniforms [[ buffer(1) ]],
+ device TerrainVertexIn* vOut [[ buffer(2) ]],
+ const texture2d<float, access::sample> noise [[ texture(0) ]],
+ uint2 tid [[ thread_position_in_grid ]]
+)
+{
+	constexpr sampler noiseSampler(mag_filter::nearest, min_filter::nearest, address::mirrored_repeat);
+	
+	uint vId = tid.x;
+	uint chunkId = tid.y;
+	float3 worldPosition;
+	worldPosition.xz = baseVertices[vId].position.xz + iUniforms[chunkId].worldPosition;
+	worldPosition.y = noise.sample(noiseSampler, worldPosition.xz / 512).r;
+	
+	TerrainVertexIn out;
+	out.position = worldPosition;
+	out.bary = baseVertices[vId].bary;
+	vOut[iUniforms[chunkId].chunkOffset + vId] = out;
 }
 
 fragment float terrain_height_frag(const TerrainVertexOut vOut [[ stage_in ]]) {

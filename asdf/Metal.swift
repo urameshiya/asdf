@@ -84,6 +84,10 @@ extension MTLComputeCommandEncoder {
 	func setBuffer<E>(_ buffer: TripleBuffer<E>, index: Int) {
 		setBuffer(buffer.buffer, offset: buffer.renderingBufferOffset, index: index)
 	}
+	
+	func setBuffer<E>(_ buffer: TypedBuffer<E>, offset: Int = 0, index: Int) {
+		setBuffer(buffer.buffer, offset: offset * MemoryLayout<E>.stride, index: index)
+	}
 }
 
 extension MTLBlitCommandEncoder {

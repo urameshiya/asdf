@@ -14,11 +14,10 @@ class ChunkRenderer {
 	var renderCenter: (x: Int, z: Int) = (-10, -10)
 	let chunkSize: Float = 100
 	let tessellator = TriangleTessellator(levelCount: 30)
-	let vertexBuffer: TypedBuffer<TerrainVertexIn>
+	let baseVertices: TypedBuffer<TerrainVertexIn>
 	let indexBuffer: TypedBuffer<UInt32>
 	var instanceUniformsBuffer: TripleBuffer<TerrainInstanceUniforms>
 	let renderPipeline: MTLRenderPipelineState
-	let areaHeightMapPipeline: MTLRenderPipelineState
 	let perlinTexture: MTLTexture
 	let instanceCount: Int
 	
@@ -27,7 +26,7 @@ class ChunkRenderer {
 		
 		do {
 			renderPipeline = try ChunkRenderer.makeRenderPipeline(context: context)
-			areaHeightMapPipeline = try	ChunkRenderer.makeAreaHeightMapPipeline(ctx: context)
+			ppl_computeTerrain = try device.makeComputePipelineState(function: context.defaultLibrary.makeFunction(name: "populate_terrain")!)
 		} catch {
 			print("Cannot compile render pipeline. Error: \(error)")
 			return nil
@@ -49,7 +48,7 @@ class ChunkRenderer {
 			1, 3, 2
 		]
 		
-		vertexBuffer = TypedBuffer(count: tessellator.vTotal * 2) { length in
+		baseVertices = TypedBuffer(count: tessellator.vTotal * 2) { length in
 			device.makeBuffer(length: length, options: [.storageModeShared])!
 		}
 		
@@ -59,14 +58,18 @@ class ChunkRenderer {
 		
 		tessellator.tessellate(vertices: preVerts,
 							   indices: preIndices,
-							   outPositions: .init(vertexBuffer.bufferPointer().accessing(\.basePosition)),
+							   outPositions: .init(baseVertices.bufferPointer().accessing(\.position)),
 							   outIndices: .init(indexBuffer.bufferPointer()),
-							   outBarys: .init(vertexBuffer.bufferPointer().accessing(\.bary)))
+							   outBarys: .init(baseVertices.bufferPointer().accessing(\.bary)))
 		
 		let side = renderDistance * 2 + 1
 		instanceCount = side * side
 		
 		instanceUniformsBuffer = TripleBuffer(count: instanceCount) { length in
+			device.makeBuffer(length: length, options: [.storageModeShared])!
+		}
+		
+		populatedVertexBuffer = TypedBuffer(count: instanceCount * baseVertices.elementCount) { length in
 			device.makeBuffer(length: length, options: [.storageModeShared])!
 		}
 		
@@ -104,7 +107,7 @@ class ChunkRenderer {
 	}
 	
 	/// Recalculate which chunks need to be rendered
-	func update(camera: Camera) {
+	func update(camera: Camera, computeEncoder: MTLComputeCommandEncoder) {
 		let chunkX = Int(floor(camera.x / chunkSize))
 		let chunkZ = Int(floor(camera.z / chunkSize))
 		
@@ -117,7 +120,9 @@ class ChunkRenderer {
 		var instanceId = 0
 		for x in -renderDistance...renderDistance {
 			for z in -renderDistance...renderDistance {
-				uniforms[instanceId] = generateChunkUniforms(chunkX: chunkX + x, chunkZ: chunkZ + z)
+				uniforms[instanceId] = generateChunkUniforms(chunkX: chunkX + x,
+															 chunkZ: chunkZ + z,
+															 bufferOffset: instanceId * baseVertices.elementCount)
 				instanceId += 1
 			}
 		}
@@ -126,14 +131,16 @@ class ChunkRenderer {
 		instanceUniformsBuffer.commitBuffer()
 		
 		renderCenter = (chunkX, chunkZ)
+		
+		computeTerrain(encoder: computeEncoder)
 	}
 	
 	func render(encoder: MTLRenderCommandEncoder, globalUniforms: TripleBuffer<GlobalUniforms>) {
 		encoder.setRenderPipelineState(renderPipeline)
-		encoder.setVertexBuffer(vertexBuffer, offset: 0, index: 0)
-		encoder.setVertexBuffer(instanceUniformsBuffer, index: 1)
-		encoder.setVertexBuffer(globalUniforms, index: 2)
-		encoder.setVertexTexture(perlinTexture, index: 0)
+		encoder.setVertexBuffer(populatedVertexBuffer, offset: 0, index: 0)
+		encoder.setVertexBuffer(globalUniforms, index: 1)
+		var perInstanceVCount = UInt32(tessellator.vTotal)
+		encoder.setVertexBytes(&perInstanceVCount, length: MemoryLayout.size(ofValue: perInstanceVCount), index: 2)
 		
 		encoder.drawIndexedPrimitives(type: .triangle,
 									  indexCount: indexBuffer.elementCount,
@@ -143,42 +150,28 @@ class ChunkRenderer {
 									  instanceCount: instanceCount)
 	}
 	
-	func generateHeightMap(
-		buffer: MTLCommandBuffer,
-		intoTexture texture: MTLTexture,
-		sceneToObjectSpaceTransform: matrix_float4x4,
-		globalUniforms: TripleBuffer<GlobalUniforms>
-	) {
-		let renderDesc = MTLRenderPassDescriptor()
-//		renderDesc.depthAttachment.clearDepth = 1000000
-//		renderDesc.depthAttachment.texture = texture
-		renderDesc.colorAttachments[0].texture = texture
+	var ppl_computeTerrain: MTLComputePipelineState
+	var populatedVertexBuffer: TypedBuffer<TerrainVertexIn>
+	
+	func computeTerrain(encoder: MTLComputeCommandEncoder) {
+		encoder.setComputePipelineState(ppl_computeTerrain)
+		encoder.setBuffer(baseVertices, index: 0)
+		encoder.setTexture(perlinTexture, index: 0)
+		encoder.setBuffer(instanceUniformsBuffer, index: 1)
+		encoder.setBuffer(populatedVertexBuffer, index: 2)
 		
-		let encoder = buffer.makeRenderCommandEncoder(descriptor: renderDesc)!
-		
-		encoder.setRenderPipelineState(areaHeightMapPipeline)
-		encoder.setVertexBuffer(vertexBuffer, offset: 0, index: 0)
-		encoder.setVertexBuffer(instanceUniformsBuffer, index: 1)
-		encoder.setVertexBuffer(globalUniforms, index: 2)
-		
-		encoder.setVertexTexture(perlinTexture, index: 0)
-		
-		var transform = sceneToObjectSpaceTransform
-		encoder.setVertexBytes(&transform, length: MemoryLayout<matrix_float4x4>.size, index: 3)
-		
-		encoder.drawIndexedPrimitives(type: .triangle,
-									  indexCount: indexBuffer.elementCount,
-									  indexType: .uint32,
-									  indexBuffer: indexBuffer.buffer,
-									  indexBufferOffset: 0,
-									  instanceCount: instanceCount)
-		
-		encoder.endEncoding()
+		let w = ppl_computeTerrain.threadExecutionWidth
+		let tgSize = MTLSize(width: w, height: ppl_computeTerrain.maxTotalThreadsPerThreadgroup / w, depth: 1)
+		let gridSize = MTLSize(width: baseVertices.elementCount, height: instanceCount, depth: 1)
+		print(gridSize)
+		print(tgSize)
+		encoder.dispatchThreads(gridSize, threadsPerThreadgroup: tgSize)
 	}
 	
-	func generateChunkUniforms(chunkX: Int, chunkZ: Int) -> TerrainInstanceUniforms {
+	func generateChunkUniforms(chunkX: Int, chunkZ: Int, bufferOffset: Int) -> TerrainInstanceUniforms {
 		var uniforms = TerrainInstanceUniforms()
 		uniforms.worldPosition = float2(Float(chunkX), Float(chunkZ)) * chunkSize
+		uniforms.chunkOffset = UInt32(bufferOffset)
 		return uniforms
 	}
 
@@ -197,21 +190,5 @@ class ChunkRenderer {
 		desc.stencilAttachmentPixelFormat = context.stencilPixelFormat
 		
 		return try context.device.makeRenderPipelineState(descriptor: desc)
-	}
-	
-	static func makeAreaHeightMapPipeline(ctx: RenderingContext) throws -> MTLRenderPipelineState {
-		let lib = ctx.defaultLibrary
-		
-		let constantValues = MTLFunctionConstantValues()
-		var fc_isGenerateHeightMapPass = true
-		constantValues.setConstantValue(&fc_isGenerateHeightMapPass, type: .bool, withName: "fc_isGenerateHeightMapPass")
-		
-		let desc = MTLRenderPipelineDescriptor()
-		desc.colorAttachments[0].pixelFormat = .r32Float
-//		desc.depthAttachmentPixelFormat = .depth32Float
-		desc.vertexFunction = try lib.makeFunction(name: "terrain_vert", constantValues: constantValues)
-		desc.fragmentFunction = try lib.makeFunction(name: "terrain_height_frag", constantValues: constantValues)
-		
-		return try ctx.device.makeRenderPipelineState(descriptor: desc)
 	}
 }

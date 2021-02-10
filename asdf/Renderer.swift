@@ -213,7 +213,6 @@ class Renderer: NSObject, MTKViewDelegate {
 		let deltaTime = Float(now.timeIntervalSince(lastUpdateTime))
 		
 		camera.updateAutoScrolling(deltaTime: deltaTime)
-		terrains.update(camera: camera)
 		lastUpdateTime = now
 		
 		let globalUniforms = globalUniformBuffer.currentBufferPointer()
@@ -221,9 +220,11 @@ class Renderer: NSObject, MTKViewDelegate {
 		globalUniformBuffer.commitBuffer()
 		
 		let buffer = commandQueue.makeCommandBuffer()!
-		
-		car.update(commandBuffer: buffer, globalUniforms: globalUniformBuffer, terrains: terrains, camera: camera)
-		
+		let computeEncoder = buffer.makeComputeCommandEncoder()!
+		computeEncoder.label = "Update Pass"
+		terrains.update(camera: camera, computeEncoder: computeEncoder)
+//		car.update(commandBuffer: buffer, globalUniforms: globalUniformBuffer, terrains: terrains, camera: camera)
+		computeEncoder.endEncoding()
 		buffer.commit()
     }
 
