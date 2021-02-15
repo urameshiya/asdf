@@ -222,9 +222,10 @@ class Renderer: NSObject, MTKViewDelegate {
 		let buffer = commandQueue.makeCommandBuffer()!
 		let computeEncoder = buffer.makeComputeCommandEncoder()!
 		computeEncoder.label = "Update Pass"
-		terrains.update(camera: camera, computeEncoder: computeEncoder)
-//		car.update(commandBuffer: buffer, globalUniforms: globalUniformBuffer, terrains: terrains, camera: camera)
+		let terrainHandler = terrains.update(camera: camera, computeEncoder: computeEncoder)
+		car.update(computeEncoder: computeEncoder, globalUniforms: globalUniformBuffer, terrains: terrains, camera: camera)
 		computeEncoder.endEncoding()
+		buffer.addCompletedHandler(terrainHandler)
 		buffer.commit()
     }
 

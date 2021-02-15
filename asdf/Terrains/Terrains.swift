@@ -10,29 +10,7 @@ import Foundation
 
 class Terrains {
 	private var tiles = [TilePoint: Tile]()
-	var tileSize: Float = 10
 	
-	init() {
-		
-	}
-	
-	func getTriangles(overlapping rect: Rect) -> [Triangle] {
-		var result = [Triangle]()
-		let uStart = Int(rect.x / tileSize)
-		let vStart = Int(rect.y / tileSize)
-		let uEnd = Int((rect.x + rect.width) / tileSize)
-		let vEnd = Int((rect.y + rect.height) / tileSize)
-		
-		for u in uStart...uEnd {
-			for v in vStart...vEnd {
-				if let tile = tiles[.init(u: u, v: v)] {
-					result.append(contentsOf: tile.triangles)
-				}
-			}
-		}
-		
-		return result
-	}
 }
 
 class Tile: Hashable {
@@ -53,7 +31,47 @@ class Tile: Hashable {
 	}
 }
 
-struct Triangle {
+protocol Triangle {
+	var v0: Vector3 { get }
+	var v1: Vector3 { get }
+	var v2: Vector3 { get }
+	func gjk_supportFunction(axis: Vector3) -> Vector3
+	func setCollided(_ collided: Bool)
+}
+
+class TriangleMemoryView: Triangle {
+	private var buffer: UnsafeMutableBufferPointer<TerrainVertexIn>
+	let offset: (Int, Int, Int)
+	
+	init(buffer: TypedBuffer<TerrainVertexIn>, offset: (Int, Int, Int)) {
+		self.buffer = buffer.bufferPointer()
+		self.offset = offset
+	}
+	
+	var v0: Vector3 {
+		return Vector3(buffer[offset.0].position)
+	}
+	
+	var v1: Vector3 {
+		return Vector3(buffer[offset.1].position)
+	}
+	
+	var v2: Vector3 {
+		return Vector3(buffer[offset.2].position)
+	}
+	
+	func setCollided(_ collided: Bool) {
+		buffer[offset.0].collided = collided
+		buffer[offset.1].collided = collided
+		buffer[offset.2].collided = collided
+	}
+	
+	func gjk_supportFunction(axis: Vector3) -> Vector3 {
+		return [v0, v1, v2].max { dot($0, axis) < dot($1, axis) }!
+	}
+}
+
+struct TriangleStruct: Triangle {
 	var v0, v1, v2: Vector3
 	var normal: Vector3 {
 		return normalize(cross(v1 - v0, v2 - v0))
@@ -65,8 +83,22 @@ struct Triangle {
 		self.v2 = v2
 	}
 	
+	init(v0: packed_float3, v1: packed_float3, v2: packed_float3) {
+		self.init(v0: Vector3(v0), v1: Vector3(v1), v2: Vector3(v2))
+	}
+	
 	func gjk_supportFunction(axis: Vector3) -> Vector3 {
 		return [v0, v1, v2].max { dot($0, axis) < dot($1, axis) }!
+	}
+	
+	func setCollided(_ collided: Bool) {
+		// NO-OP
+	}
+}
+
+extension Vector3 {
+	init(_ v: packed_float3) {
+		self.init(v.x, v.y, v.z)
 	}
 }
 

@@ -25,6 +25,7 @@ struct TerrainVertexOut {
 	float worldHeight [[ function_constant(fc_isGenerateHeightMapPass) ]];
 	float3 bary;
 	half4 color;
+	bool collided;
 };
 
 TerrainVertexOut generateWorldHeight(float4 worldPosition, float4x4 xyProjectionMatrix, float depthValue) {
@@ -49,7 +50,7 @@ vertex TerrainVertexOut terrain_vert
 	vOut.position = gUniforms.camera.viewProjectionMatrix * float4(vert.position, 1.0);
 		
 	vOut.bary = float3(vert.bary == uchar3(0, 1, 2));
-
+	vOut.collided = vert.collided;
 	return vOut;
 }
 
@@ -86,6 +87,10 @@ fragment float4 terrain_frag(const TerrainVertexOut in [[ stage_in ]])
 	float width = 0.01; // line width, max 0.33
 	float3 reducedRange = max(width - in.bary, 0) / width;
 	float feathering = max3(reducedRange.x, reducedRange.y, reducedRange.z);
+	
+	if (in.collided) {
+		return float4(0, 1, 0, 1);
+	}
 	
 	return color * feathering;
 }
@@ -191,6 +196,7 @@ vertex ColorInOut wheel_mesh_vertex(const device packed_float3* vIn [[ buffer(0)
 	return out;
 }
 
-fragment float4 simple_fragment(const ColorInOut in [[ stage_in ]]) {
-	return float4(in.texCoord, 0, 1.0);
+fragment float4 simple_fragment(const ColorInOut in [[ stage_in ]],
+								const device bool& collided [[ buffer(0) ]]) {
+	return collided ? float4(1, 0, 0, 1) : float4(in.texCoord, 0, 1.0);
 }

@@ -107,19 +107,20 @@ class ChunkRenderer {
 	}
 	
 	/// Recalculate which chunks need to be rendered
-	func update(camera: Camera, computeEncoder: MTLComputeCommandEncoder) {
+	func update(camera: Camera, computeEncoder: MTLComputeCommandEncoder) -> MTLCommandBufferHandler {
 		let chunkX = Int(floor(camera.x / chunkSize))
 		let chunkZ = Int(floor(camera.z / chunkSize))
 		
 		if (chunkX, chunkZ) == renderCenter {
-			return
+			return { _ in }
 		}
+		isTerrainPopulated = false
 		
 		let uniforms = instanceUniformsBuffer.currentBufferPointer()
 		
 		var instanceId = 0
-		for x in -renderDistance...renderDistance {
-			for z in -renderDistance...renderDistance {
+		for z in -renderDistance...renderDistance {
+			for x in -renderDistance...renderDistance {
 				uniforms[instanceId] = generateChunkUniforms(chunkX: chunkX + x,
 															 chunkZ: chunkZ + z,
 															 bufferOffset: instanceId * baseVertices.elementCount)
@@ -133,6 +134,8 @@ class ChunkRenderer {
 		renderCenter = (chunkX, chunkZ)
 		
 		computeTerrain(encoder: computeEncoder)
+		
+		return { _ in self.isTerrainPopulated = true }
 	}
 	
 	func render(encoder: MTLRenderCommandEncoder, globalUniforms: TripleBuffer<GlobalUniforms>) {
@@ -152,6 +155,7 @@ class ChunkRenderer {
 	
 	var ppl_computeTerrain: MTLComputePipelineState
 	var populatedVertexBuffer: TypedBuffer<TerrainVertexIn>
+	var isTerrainPopulated = false
 	
 	func computeTerrain(encoder: MTLComputeCommandEncoder) {
 		encoder.setComputePipelineState(ppl_computeTerrain)
@@ -163,8 +167,6 @@ class ChunkRenderer {
 		let w = ppl_computeTerrain.threadExecutionWidth
 		let tgSize = MTLSize(width: w, height: ppl_computeTerrain.maxTotalThreadsPerThreadgroup / w, depth: 1)
 		let gridSize = MTLSize(width: baseVertices.elementCount, height: instanceCount, depth: 1)
-		print(gridSize)
-		print(tgSize)
 		encoder.dispatchThreads(gridSize, threadsPerThreadgroup: tgSize)
 	}
 	
@@ -190,5 +192,40 @@ class ChunkRenderer {
 		desc.stencilAttachmentPixelFormat = context.stencilPixelFormat
 		
 		return try context.device.makeRenderPipelineState(descriptor: desc)
+	}
+	
+	func getBufferOffsetForChunk(u: Int, v: Int) -> Int? {
+		let x = u - renderCenter.x + renderDistance
+		let y = v - renderCenter.z + renderDistance
+		
+		let offset = y * (2 * renderDistance + 1) + x
+		return 0..<instanceCount ~= offset ? offset * baseVertices.elementCount : nil
+	}
+	
+	func getTriangles(overlapping rect: Rect) -> [Triangle] {
+		var result = [Triangle]()
+		let uStart = Int(floor(rect.x / chunkSize))
+		let vStart = Int(floor(rect.y / chunkSize))
+		let uEnd = Int(ceil((rect.x + rect.width) / chunkSize))
+		let vEnd = Int(ceil((rect.y + rect.height) / chunkSize))
+		
+		let vPtr = populatedVertexBuffer.bufferPointer()
+		for u in uStart...uEnd {
+			for v in vStart...vEnd {
+				guard let chunkVOffset = getBufferOffsetForChunk(u: u, v: v) else { continue }
+				let indices = indexBuffer.bufferPointer()
+				for i in stride(from: indices.startIndex, to: indices.endIndex, by: 3) {
+//					result.append(.init(v0: vPtr[chunkVOffset + Int(indices[i])].position,
+//										v1: vPtr[chunkVOffset + Int(indices[i + 1])].position,
+//										v2: vPtr[chunkVOffset + Int(indices[i + 2])].position))
+					result.append(TriangleMemoryView(buffer: populatedVertexBuffer,
+													 offset: (chunkVOffset + Int(indices[i]),
+															  chunkVOffset + Int(indices[i + 1]),
+															  chunkVOffset + Int(indices[i + 2]))))
+				}
+			}
+		}
+		
+		return result
 	}
 }

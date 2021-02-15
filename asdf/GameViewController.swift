@@ -65,16 +65,17 @@ class GameViewController: NSViewController {
 		let speed = renderer.camera.scrollspeed * 0.03
 		switch event.charactersIgnoringModifiers?.lowercased() {
 		case "h":
-			car.pos.x -= speed
+			car.pos.y -= speed
 		case "j":
 			car.pos.z += speed
 		case "k":
-			car.pos.x += speed
+			car.pos.y += speed
 		case "u":
 			car.pos.z -= speed
 		default:
 			return false
 		}
+		car.gjk_shouldInvalidate = true
 		return true
 	}
 	
